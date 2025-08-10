@@ -33,6 +33,64 @@ let dailyChallenge = generateDailyChallenge();
 
 // Simple user stats tracking (in-memory for now)
 const userStats = new Map(); // userId -> { bestWpm, gamesPlayed, streak, lastPlayed }
+const userAchievements = new Map(); // userId -> Set of achievement ids
+
+const ACHIEVEMENTS = {
+  FIRST_RACE: { id: 'first_race', name: 'Getting Started', description: 'Complete your first race!', icon: '🏁' },
+  SPEED_DEMON_50: { id: 'speed_50', name: 'Speed Demon', description: 'Type 50+ WPM!', icon: '⚡' },
+  SPEED_DEMON_80: { id: 'speed_80', name: 'Lightning Fast', description: 'Type 80+ WPM!', icon: '🚀' },
+  PERFECT_ACCURACY: { id: 'perfect_acc', name: 'Perfectionist', description: '100% accuracy in a race!', icon: '🎯' },
+  STREAK_3: { id: 'streak_3', name: 'On Fire', description: '3-day typing streak!', icon: '🔥' },
+  STREAK_7: { id: 'streak_7', name: 'Dedication', description: '7-day typing streak!', icon: '💎' },
+  NO_BACKSPACE: { id: 'no_backspace', name: 'Smooth Operator', description: 'Complete race with 0 backspaces!', icon: '✨' },
+  MARATHON: { id: 'marathon', name: 'Marathon Runner', description: 'Complete a marathon length race!', icon: '🏃' }
+};
+
+function checkAchievements(userId, stats, raceData) {
+  const userAchs = userAchievements.get(userId) || new Set();
+  const newAchievements = [];
+
+  // First race
+  if (!userAchs.has('first_race') && stats.gamesPlayed === 1) {
+    newAchievements.push(ACHIEVEMENTS.FIRST_RACE);
+    userAchs.add('first_race');
+  }
+
+  // Speed achievements
+  if (!userAchs.has('speed_50') && raceData.wpm >= 50) {
+    newAchievements.push(ACHIEVEMENTS.SPEED_DEMON_50);
+    userAchs.add('speed_50');
+  }
+  if (!userAchs.has('speed_80') && raceData.wpm >= 80) {
+    newAchievements.push(ACHIEVEMENTS.SPEED_DEMON_80);
+    userAchs.add('speed_80');
+  }
+
+  // Perfect accuracy
+  if (!userAchs.has('perfect_acc') && raceData.accuracy === 100) {
+    newAchievements.push(ACHIEVEMENTS.PERFECT_ACCURACY);
+    userAchs.add('perfect_acc');
+  }
+
+  // Streaks
+  if (!userAchs.has('streak_3') && stats.streak >= 3) {
+    newAchievements.push(ACHIEVEMENTS.STREAK_3);
+    userAchs.add('streak_3');
+  }
+  if (!userAchs.has('streak_7') && stats.streak >= 7) {
+    newAchievements.push(ACHIEVEMENTS.STREAK_7);
+    userAchs.add('streak_7');
+  }
+
+  // Marathon
+  if (!userAchs.has('marathon') && raceData.length === 'marathon') {
+    newAchievements.push(ACHIEVEMENTS.MARATHON);
+    userAchs.add('marathon');
+  }
+
+  userAchievements.set(userId, userAchs);
+  return newAchievements;
+}
 
 function updateUserStats(userId, wpm, accuracy) {
   const stats = userStats.get(userId) || { bestWpm: 0, gamesPlayed: 0, streak: 0, lastPlayed: null };
@@ -215,8 +273,14 @@ io.on('connection', (socket) => {
         
         // Update user stats and check for achievements
         const stats = updateUserStats(p.id, p.wpm, p.accuracy);
+        const achievements = checkAchievements(p.id, stats, { wpm: p.wpm, accuracy: p.accuracy, length: race.length });
         result.isNewRecord = p.wpm === stats.bestWpm;
         result.streak = stats.streak;
+        
+        // Send achievements to player
+        achievements.forEach(ach => {
+          socket.emit('achievement_unlocked', ach);
+        });
         
         io.to(room).emit('player_finished', result);
         topRuns.push(result);

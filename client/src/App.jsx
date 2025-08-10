@@ -5,6 +5,136 @@ import Phaser from 'phaser';
 // UI libs
 import confetti from 'canvas-confetti';
 
+// Sound effects using Web Audio API
+class SoundEffects {
+  constructor() {
+    this.audioContext = null;
+    this.sounds = new Map();
+    this.enabled = localStorage.getItem('soundEnabled') !== 'false';
+  }
+
+  async init() {
+    if (this.audioContext) return;
+    try {
+      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      this.createSounds();
+    } catch (e) {
+      console.warn('Audio not supported');
+    }
+  }
+
+  createSounds() {
+    // Typing sound
+    this.sounds.set('type', this.createTone(800, 0.05, 0.1));
+    // Error sound
+    this.sounds.set('error', this.createTone(200, 0.1, 0.3));
+    // Achievement sound
+    this.sounds.set('achievement', this.createMelody([523, 659, 784], 0.3));
+    // Finish sound
+    this.sounds.set('finish', this.createMelody([523, 659, 784, 1047], 0.5));
+  }
+
+  createTone(frequency, duration, volume = 0.1) {
+    return () => {
+      if (!this.enabled || !this.audioContext) return;
+      const oscillator = this.audioContext.createOscillator();
+      const gainNode = this.audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(this.audioContext.destination);
+      
+      oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+      gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+      gainNode.gain.linearRampToValueAtTime(volume, this.audioContext.currentTime + 0.01);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + duration);
+      
+      oscillator.start(this.audioContext.currentTime);
+      oscillator.stop(this.audioContext.currentTime + duration);
+    };
+  }
+
+  createMelody(frequencies, duration) {
+    return () => {
+      if (!this.enabled || !this.audioContext) return;
+      frequencies.forEach((freq, i) => {
+        setTimeout(() => this.createTone(freq, 0.3, 0.15)(), i * 150);
+      });
+    };
+  }
+
+  play(sound) {
+    const soundFn = this.sounds.get(sound);
+    if (soundFn) soundFn();
+  }
+
+  toggle() {
+    this.enabled = !this.enabled;
+    localStorage.setItem('soundEnabled', this.enabled);
+    return this.enabled;
+  }
+}
+
+const soundEffects = new SoundEffects();
+
+const THEMES = {
+  default: {
+    name: 'Ocean Breeze',
+    background: 'bg-gradient-to-b from-indigo-50 via-white to-purple-50',
+    header: 'backdrop-blur bg-white/70',
+    card: 'bg-white',
+    accent: 'bg-indigo-600 hover:bg-indigo-700',
+    text: 'text-gray-900',
+    input: 'bg-white border-gray-300 text-gray-900 focus:ring-indigo-500',
+    textarea: 'bg-white border-gray-300 text-gray-900 focus:ring-indigo-500',
+    promptBg: 'bg-gray-50',
+    navButton: 'bg-gray-100 text-gray-700 border-gray-200',
+    navTag: 'bg-gray-100 text-gray-900',
+    soundButton: 'text-gray-700'
+  },
+  forest: {
+    name: 'Forest',
+    background: 'bg-gradient-to-b from-green-100 via-emerald-50 to-teal-50',
+    header: 'backdrop-blur bg-green-50/90',
+    card: 'bg-white',
+    accent: 'bg-green-600 hover:bg-green-700',
+    text: 'text-gray-900',
+    input: 'bg-white border-green-300 text-gray-900 focus:ring-green-500',
+    textarea: 'bg-white border-green-300 text-gray-900 focus:ring-green-500',
+    promptBg: 'bg-green-50',
+    navButton: 'bg-green-100 text-green-800 border-green-200',
+    navTag: 'bg-green-100 text-green-900',
+    soundButton: 'text-green-800'
+  },
+  dark: {
+    name: 'Midnight',
+    background: 'bg-gradient-to-b from-gray-900 via-gray-800 to-black',
+    header: 'backdrop-blur bg-gray-900/80',
+    card: 'bg-gray-800 text-white border-gray-600',
+    accent: 'bg-purple-600 hover:bg-purple-700',
+    text: 'text-white',
+    input: 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:ring-purple-500 focus:border-purple-500',
+    textarea: 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:ring-purple-500 focus:border-purple-500',
+    promptBg: 'bg-gray-700',
+    navButton: 'bg-gray-700 text-white border-gray-600 hover:bg-gray-600',
+    navTag: 'bg-gray-700 text-white border-gray-600',
+    soundButton: 'text-white'
+  },
+  cyberpunk: {
+    name: 'Cyberpunk',
+    background: 'bg-gradient-to-b from-pink-900 via-purple-900 to-black',
+    header: 'backdrop-blur bg-black/80',
+    card: 'bg-gray-900 text-cyan-100 border-cyan-500/30',
+    accent: 'bg-cyan-500 hover:bg-cyan-400 text-black',
+    text: 'text-cyan-100',
+    input: 'bg-gray-800 border-cyan-500/50 text-cyan-100 placeholder-cyan-300/70 focus:ring-cyan-400 focus:border-cyan-400',
+    textarea: 'bg-gray-800 border-cyan-500/50 text-cyan-100 placeholder-cyan-300/70 focus:ring-cyan-400 focus:border-cyan-400',
+    promptBg: 'bg-gray-800',
+    navButton: 'bg-gray-800 text-cyan-100 border-cyan-500/50 hover:bg-gray-700',
+    navTag: 'bg-gray-800 text-cyan-100 border-cyan-500/30',
+    soundButton: 'text-cyan-100'
+  }
+};
+
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:4000';
 
 export default function App() {
@@ -16,6 +146,11 @@ export default function App() {
     try { return parseInt(new URLSearchParams(location.search).get('challenge')) || null; } catch { return null; }
   });
   const [dailyChallenge, setDailyChallenge] = useState(null);
+  const [achievements, setAchievements] = useState([]);
+  const [showAchievement, setShowAchievement] = useState(null);
+  const [soundEnabled, setSoundEnabled] = useState(soundEffects.enabled);
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'default');
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [joined, setJoined] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [startedAt, setStartedAt] = useState(null);
@@ -64,13 +199,24 @@ export default function App() {
       if (state.length) setLength(state.length);
       if (state.durationMs) setDurationMs(state.durationMs);
     });
-    socket.on('race_finished', () => { setFinished(true); confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } }); });
+    socket.on('race_finished', () => { 
+      setFinished(true); 
+      soundEffects.play('finish');
+      confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } }); 
+    });
     socket.on('race_restarted', ({ prompt, mode, length, durationMs }) => { setPrompt(prompt); setFinished(false); setTyped(''); setCountdown(0); setStartedAt(null); if (mode) setMode(mode); if (length) setLength(length); if (durationMs) setDurationMs(durationMs); });
     socket.on('chat_message', (msg) => setMessages(m => [...m.slice(-98), msg]));
     socket.on('emote', (e) => setMessages(m => [...m.slice(-98), { id: e.id, name: 'Emote', text: e.emoji, ts: e.ts }]));
     socket.on('top_runs', (runs) => setTopRuns(runs || []));
     socket.on('chat_history', (hist) => setMessages(hist || []));
     socket.on('daily_challenge', (challenge) => setDailyChallenge(challenge));
+    socket.on('achievement_unlocked', (achievement) => {
+      setAchievements(prev => [...prev, achievement]);
+      setShowAchievement(achievement);
+      soundEffects.play('achievement');
+      confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
+      setTimeout(() => setShowAchievement(null), 4000);
+    });
     socket.on('typing', ({ id, name, isTyping, kind, ts }) => {
       const map = new Map(typingUsersRef.current);
       if (isTyping) map.set(id, { name, kind, ts: ts || Date.now() }); else map.delete(id);
@@ -117,8 +263,16 @@ export default function App() {
     if (joined) {
       socket.emit('get_top');
       socket.emit('get_daily_challenge');
+      soundEffects.init(); // Initialize sounds when user joins
     }
   }, [joined, socket]);
+
+  // Handle window resize for mobile detection
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   function handleJoin(e) {
     e.preventDefault();
@@ -128,6 +282,24 @@ export default function App() {
   function handleRestart() { socket.emit('restart_race'); }
   function handleSendChat(e) { e.preventDefault(); if (!chatText.trim()) return; socket.emit('chat_message', { text: chatText }); setChatText(''); }
   function handleEmote(emoji) { socket.emit('send_emote', { emoji }); }
+  function handleThemeChange(newTheme) {
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+  }
+  function handleLeaveRoom() {
+    socket.disconnect();
+    setJoined(false);
+    setRoom('');
+    setName('');
+    setPlayers([]);
+    setMessages([]);
+    setTyped('');
+    setStartedAt(null);
+    setFinished(false);
+    setCountdown(0);
+    // Reconnect socket for future use
+    socket.connect();
+  }
 
   const correctChars = prompt ? [...typed].filter((c, i) => c === prompt[i]).length : 0;
   const totalTyped = typed.length;
@@ -161,9 +333,11 @@ export default function App() {
     return () => clearInterval(id);
   }, [startedAt, finished, correctChars, totalTyped]);
 
+  const currentTheme = THEMES[theme] || THEMES.default;
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-white to-purple-50 text-gray-900">
-      <header className="sticky top-0 z-10 backdrop-blur bg-white/70 border-b">
+    <div className={`min-h-screen ${currentTheme.background} ${currentTheme.text}`}>
+      <header className={`sticky top-0 z-10 ${currentTheme.header} border-b`}>
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2 text-xl font-semibold">
             <span>🏁</span>
@@ -172,17 +346,41 @@ export default function App() {
           </div>
           {joined ? (
             <div className="flex items-center gap-3 text-sm">
-              <span className="px-2 py-1 rounded bg-gray-100">Room: <b>{room}</b></span>
-              <span className="hidden md:inline px-2 py-1 rounded bg-gray-100">Mode: <b>{mode}</b></span>
-              <span className="hidden md:inline px-2 py-1 rounded bg-gray-100">Length: <b>{length}</b></span>
+              <select 
+                value={theme} 
+                onChange={(e) => handleThemeChange(e.target.value)}
+                className={`px-2 py-1 rounded text-xs border ${currentTheme.navButton}`}
+                title="Choose theme"
+              >
+                {Object.entries(THEMES).map(([key, t]) => (
+                  <option key={key} value={key}>{t.name}</option>
+                ))}
+              </select>
+              <button 
+                onClick={() => setSoundEnabled(soundEffects.toggle())}
+                className={`px-2 py-1 rounded transition border ${soundEnabled ? 'bg-green-100 text-green-700 border-green-200' : currentTheme.navButton}`}
+                title={soundEnabled ? 'Sound: ON' : 'Sound: OFF'}
+              >
+                {soundEnabled ? '🔊' : '🔇'}
+              </button>
+              <button 
+                onClick={handleLeaveRoom}
+                className={`px-2 py-1 rounded transition border ${currentTheme.navButton} hover:bg-red-100 hover:text-red-700 hover:border-red-200`}
+                title="Leave Room"
+              >
+                🚪 Leave
+              </button>
+              <span className={`px-2 py-1 rounded border ${currentTheme.navTag}`}>Room: <b>{room}</b></span>
+              <span className={`hidden md:inline px-2 py-1 rounded border ${currentTheme.navTag}`}>Mode: <b>{mode}</b></span>
+              <span className={`hidden md:inline px-2 py-1 rounded border ${currentTheme.navTag}`}>Length: <b>{length}</b></span>
                     {mode!=='regular' && startedAt ? (
-                <span className="px-2 py-1 rounded bg-indigo-50 text-indigo-700">Time left: <b>{formatMs(timeLeft)}</b></span>
+                <span className={`px-2 py-1 rounded border ${currentTheme.navTag}`}>Time left: <b>{formatMs(timeLeft)}</b></span>
               ) : null}
               {!startedAt && !countdown ? (
-                <button className="btn" onClick={handleStart}>Start</button>
+                <button className={`px-3 py-1.5 rounded-md border transition text-sm ${currentTheme.navButton}`} onClick={handleStart}>Start</button>
               ) : null}
               {(finished || startedAt) ? (
-                <button className="btn-outline" onClick={handleRestart}>Restart</button>
+                <button className={`px-3 py-1.5 rounded-md border transition text-sm ${currentTheme.navButton}`} onClick={handleRestart}>Restart</button>
               ) : null}
             </div>
           ) : null}
@@ -191,17 +389,48 @@ export default function App() {
 
       <main className="max-w-6xl mx-auto px-4 py-6">
         {!joined ? (
-          <div className="mx-auto max-w-xl bg-white shadow-lg border rounded-xl p-6">
-            <h2 className="text-2xl font-semibold mb-4">Join a Room</h2>
+          <div className={`mx-auto max-w-xl ${currentTheme.card} shadow-lg border rounded-xl p-6`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-semibold">Join a Room</h2>
+              <div className="flex items-center gap-2">
+                <select 
+                  value={theme} 
+                  onChange={(e) => handleThemeChange(e.target.value)}
+                  className={`px-2 py-1 rounded text-xs ${currentTheme.input}`}
+                  title="Choose theme"
+                >
+                  {Object.entries(THEMES).map(([key, t]) => (
+                    <option key={key} value={key}>{t.name}</option>
+                  ))}
+                </select>
+                <button 
+                  onClick={() => setSoundEnabled(soundEffects.toggle())}
+                  className={`px-2 py-1 rounded transition text-sm border ${soundEnabled ? 'bg-green-100 text-green-700 border-green-200' : currentTheme.navButton}`}
+                  title={soundEnabled ? 'Sound: ON' : 'Sound: OFF'}
+                >
+                  {soundEnabled ? '🔊' : '🔇'}
+                </button>
+              </div>
+            </div>
             <form onSubmit={handleJoin} className="grid grid-cols-1 gap-3">
-              <input className="input" placeholder="Your name" value={name} onChange={e=>setName(e.target.value)} />
-              <input className="input" placeholder="Room code (optional)" value={room} onChange={e=>setRoom(e.target.value)} />
-              <button type="submit" className="btn-primary">Join</button>
+              <input 
+                className={`w-full px-3 py-2 border rounded-md outline-none focus:ring-2 ${currentTheme.input}`} 
+                placeholder="Your name" 
+                value={name} 
+                onChange={e=>setName(e.target.value)} 
+              />
+              <input 
+                className={`w-full px-3 py-2 border rounded-md outline-none focus:ring-2 ${currentTheme.input}`} 
+                placeholder="Room code (optional)" 
+                value={room} 
+                onChange={e=>setRoom(e.target.value)} 
+              />
+              <button type="submit" className={`px-3 py-1.5 rounded-md text-white transition text-sm ${currentTheme.accent}`}>Join</button>
             </form>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <section className="lg:col-span-2 bg-white border rounded-xl shadow-sm p-4">
+          <div className={`grid grid-cols-1 ${isMobile ? '' : 'lg:grid-cols-3'} gap-6`}>
+            <section className={`lg:col-span-2 ${currentTheme.card} border rounded-xl shadow-sm p-4`}>
               <div className="relative">
                 {countdown ? (
                   <div className="absolute inset-0 z-10 grid place-items-center bg-white/80 text-6xl font-bold">{countdown}</div>
@@ -225,13 +454,17 @@ export default function App() {
               </div>
               <div className="mt-4">
                 <p className="text-sm text-gray-600 mb-2"><b>Prompt</b></p>
-                <PromptHighlighter prompt={prompt} typed={typed} />
+                <PromptHighlighter prompt={prompt} typed={typed} theme={currentTheme} />
                 <textarea
-                  className="textarea mt-3"
+                  className={`w-full px-3 py-2 border rounded-md outline-none focus:ring-2 mt-3 ${isMobile ? 'text-lg' : ''} ${currentTheme.textarea}`}
                   disabled={!startedAt || finished}
-                  rows={5}
-                  placeholder={startedAt ? 'Type here…' : 'Click Start to begin'}
+                  rows={isMobile ? 4 : 5}
+                  placeholder={startedAt ? (isMobile ? 'Tap to type...' : 'Type here…') : 'Click Start to begin'}
                   value={typed}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
                   onChange={e=>{
                     const v = e.target.value;
                     if (!firstKeyAt && v.length>0) setFirstKeyAt(Date.now());
@@ -243,7 +476,12 @@ export default function App() {
                     if (e.key.length === 1 && prompt) {
                       const idx = typed.length;
                       const expected = prompt[idx] ?? '';
-                      if (e.key !== expected) setErrorKeys(n => n + 1);
+                      if (e.key !== expected) {
+                        setErrorKeys(n => n + 1);
+                        soundEffects.play('error');
+                      } else {
+                        soundEffects.play('type');
+                      }
                     }
                     if (!finished && startedAt) socket.emit('typing_ping', { kind: 'race' });
                   }}
@@ -254,6 +492,7 @@ export default function App() {
                   accNow={accSeries.length? accSeries[accSeries.length-1].a : 100}
                   wpmSeries={wpmSeries}
                   accSeries={accSeries}
+                  theme={currentTheme}
                 />
               </div>
             </section>
@@ -276,18 +515,18 @@ export default function App() {
                 </div>
               )}
               {!startedAt && (
-                <div className="bg-white border rounded-xl shadow-sm p-4">
+                <div className={`${currentTheme.card} border rounded-xl shadow-sm p-4`}>
                   <h3 className="font-semibold mb-3">Race Settings</h3>
                   <div className="grid grid-cols-1 gap-3">
                     <label className="text-sm">Mode
-                      <select className="input mt-1" value={mode} onChange={e=>setMode(e.target.value)}>
+                      <select className={`w-full px-3 py-2 border rounded-md outline-none focus:ring-2 mt-1 ${currentTheme.input}`} value={mode} onChange={e=>setMode(e.target.value)}>
                         <option value="regular">Regular</option>
                         <option value="infinite">Infinite</option>
                         <option value="timed">Timed</option>
                       </select>
                     </label>
                     <label className="text-sm">Prompt length
-                      <select className="input mt-1" value={length} onChange={e=>setLength(e.target.value)}>
+                      <select className={`w-full px-3 py-2 border rounded-md outline-none focus:ring-2 mt-1 ${currentTheme.input}`} value={length} onChange={e=>setLength(e.target.value)}>
                         <option value="short">Short</option>
                         <option value="medium">Medium</option>
                         <option value="long">Long</option>
@@ -296,7 +535,7 @@ export default function App() {
                     </label>
                     {mode!=='regular' && (
                       <label className="text-sm">Duration
-                        <select className="input mt-1" value={durationMs} onChange={e=>setDurationMs(Number(e.target.value))}>
+                        <select className={`w-full px-3 py-2 border rounded-md outline-none focus:ring-2 mt-1 ${currentTheme.input}`} value={durationMs} onChange={e=>setDurationMs(Number(e.target.value))}>
                           <option value={60_000}>1 minute</option>
                           <option value={3*60_000}>3 minutes</option>
                           <option value={5*60_000}>5 minutes</option>
@@ -307,7 +546,7 @@ export default function App() {
                   </div>
                 </div>
               )}
-              <div className="bg-white border rounded-xl shadow-sm p-4">
+              <div className={`${currentTheme.card} border rounded-xl shadow-sm p-4`}>
                 <h3 className="font-semibold mb-3">Leaderboard</h3>
                 <ol className="space-y-2">
                   {players.map((p, i) => (
@@ -321,7 +560,7 @@ export default function App() {
                   ))}
                 </ol>
               </div>
-              <div className="bg-white border rounded-xl shadow-sm p-4">
+              <div className={`${currentTheme.card} border rounded-xl shadow-sm p-4`}>
                 <h3 className="font-semibold mb-3">Top Runs</h3>
                 <ol className="space-y-1 text-sm max-h-48 overflow-y-auto pr-2">
                   {topRuns.map((r, i) => (
@@ -332,7 +571,7 @@ export default function App() {
                   ))}
                 </ol>
               </div>
-              <div className="bg-white border rounded-xl shadow-sm p-4">
+              <div className={`${currentTheme.card} border rounded-xl shadow-sm p-4`}>
                 <h3 className="font-semibold mb-3">Chat</h3>
                 <div className="h-48 overflow-y-auto space-y-2 pr-2">
                   {messages.map((m, idx) => (
@@ -358,16 +597,18 @@ export default function App() {
                   ))}
                 </div>
                 <form onSubmit={handleSendChat} className="mt-3 flex gap-2">
-                  <input className="input flex-1" placeholder="Say something…"
-                         value={chatText}
-                         onChange={e=>{ setChatText(e.target.value); socket.emit('typing_ping', { kind: 'chat' }); }}
-                         onKeyDown={(e)=>{ if (e.key==='Escape'){ setChatText(''); e.currentTarget.blur(); }} }
+                  <input 
+                    className={`flex-1 px-3 py-2 border rounded-md outline-none focus:ring-2 ${currentTheme.input}`}
+                    placeholder="Say something…"
+                    value={chatText}
+                    onChange={e=>{ setChatText(e.target.value); socket.emit('typing_ping', { kind: 'chat' }); }}
+                    onKeyDown={(e)=>{ if (e.key==='Escape'){ setChatText(''); e.currentTarget.blur(); }} }
                   />
-                  <button className="btn" type="submit">Send</button>
+                  <button className={`px-3 py-1.5 rounded-md border transition text-sm ${currentTheme.navButton}`} type="submit">Send</button>
                 </form>
                 <div className="mt-2 flex gap-2">
                   {['🎉','🔥','💨','👏','😎'].map(em => (
-                    <button key={em} className="btn-xs" type="button" onClick={()=>handleEmote(em)}>{em}</button>
+                    <button key={em} className={`px-2 py-1 rounded border text-xs ${currentTheme.navButton}`} type="button" onClick={()=>handleEmote(em)}>{em}</button>
                   ))}
                 </div>
                 {(() => {
@@ -420,8 +661,37 @@ export default function App() {
           mode={mode}
           length={length}
           durationMs={durationMs}
+          theme={currentTheme}
         />
       ) : null}
+
+      {showAchievement && (
+        <AchievementPopup 
+          achievement={showAchievement} 
+          onClose={() => setShowAchievement(null)} 
+        />
+      )}
+    </div>
+  );
+}
+
+function AchievementPopup({ achievement, onClose }) {
+  const isMobile = window.innerWidth < 768;
+  return (
+    <div className={`fixed ${isMobile ? 'top-16 left-4 right-4' : 'top-4 right-4'} z-30 animate-bounce`}>
+      <div className={`bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 text-white p-4 rounded-lg shadow-2xl border-2 border-yellow-300 ${isMobile ? '' : 'max-w-sm'}`}>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-2xl">{achievement.icon}</span>
+              <h3 className="font-bold text-lg">Achievement Unlocked!</h3>
+            </div>
+            <p className="font-semibold">{achievement.name}</p>
+            <p className="text-sm opacity-90">{achievement.description}</p>
+          </div>
+          <button onClick={onClose} className="text-white/80 hover:text-white text-xl">×</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -503,18 +773,18 @@ function computeAcc(correct, total) {
   return total ? Math.max(0, Math.min(100, Math.round((correct/total)*100))) : 100;
 }
 
-function LiveStats({ wpmNow, accNow, wpmSeries, accSeries }) {
+function LiveStats({ wpmNow, accNow, wpmSeries, accSeries, theme }) {
   return (
     <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-      <div className="p-3 border rounded-md bg-white">
-        <div className="text-xs text-gray-500 mb-1">WPM</div>
+      <div className={`p-3 border rounded-md ${theme.card}`}>
+        <div className="text-xs opacity-70 mb-1">WPM</div>
         <div className="flex items-end justify-between">
           <div className="text-2xl font-semibold tabular-nums">{wpmNow}</div>
           <Sparkline data={wpmSeries.map(p=>p.w)} color="#4f46e5" />
         </div>
       </div>
-      <div className="p-3 border rounded-md bg-white">
-        <div className="text-xs text-gray-500 mb-1">Accuracy</div>
+      <div className={`p-3 border rounded-md ${theme.card}`}>
+        <div className="text-xs opacity-70 mb-1">Accuracy</div>
         <div className="flex items-end justify-between">
           <div className="text-2xl font-semibold tabular-nums">{accNow}%</div>
           <Sparkline data={accSeries.map(p=>p.a)} color="#059669" maxValue={100} />
@@ -540,7 +810,7 @@ function Sparkline({ data, color = '#4f46e5', width = 140, height = 36, maxValue
   );
 }
 
-function ResultsModal({ onClose, prompt, wpmSeries, accSeries, totalTyped, correctChars, startedAt, backspaces, firstKeyAt, mode, length, durationMs }) {
+function ResultsModal({ onClose, prompt, wpmSeries, accSeries, totalTyped, correctChars, startedAt, backspaces, firstKeyAt, mode, length, durationMs, theme }) {
   const duration = (wpmSeries[wpmSeries.length-1]?.t || 0);
   const meanWpm = average(wpmSeries.map(p=>p.w));
   const peakWpm = Math.max(...wpmSeries.map(p=>p.w), 0);
@@ -569,37 +839,37 @@ function ResultsModal({ onClose, prompt, wpmSeries, accSeries, totalTyped, corre
 
   return (
     <div className="fixed inset-0 z-20 grid place-items-center bg-black/40 p-4">
-      <div className="w-full max-w-2xl bg-white rounded-xl shadow-lg border p-5">
+      <div className={`w-full max-w-2xl ${theme.card} rounded-xl shadow-lg border p-5`}>
         <div className="flex items-start justify-between gap-3">
           <h3 className="text-xl font-semibold">Results</h3>
-          <button className="btn-outline" onClick={onClose}>Close</button>
+          <button className={`px-3 py-1.5 rounded-md border transition text-sm ${theme.navButton}`} onClick={onClose}>Close</button>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-          <Stat label="Avg WPM" value={Math.round(meanWpm)} />
-          <Stat label="Peak WPM" value={peakWpm} />
-          <Stat label="Accuracy" value={`${finalAcc}%`} />
-          <Stat label="Time" value={formatMs(duration)} />
-          <Stat label="Backspaces" value={backspaces} />
-          <Stat label="First Key" value={timeToFirstKey != null ? formatMs(timeToFirstKey) : '—'} />
-          <Stat label="Consistency" value={`${(100 - Math.min(100, Math.round(consistency*100))).toString()}%`} />
+          <Stat label="Avg WPM" value={Math.round(meanWpm)} theme={theme} />
+          <Stat label="Peak WPM" value={peakWpm} theme={theme} />
+          <Stat label="Accuracy" value={`${finalAcc}%`} theme={theme} />
+          <Stat label="Time" value={formatMs(duration)} theme={theme} />
+          <Stat label="Backspaces" value={backspaces} theme={theme} />
+          <Stat label="First Key" value={timeToFirstKey != null ? formatMs(timeToFirstKey) : '—'} theme={theme} />
+          <Stat label="Consistency" value={`${(100 - Math.min(100, Math.round(consistency*100))).toString()}%`} theme={theme} />
         </div>
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="p-3 border rounded-md bg-gray-50">
-            <div className="text-xs text-gray-500 mb-1">WPM over time</div>
+          <div className={`p-3 border rounded-md ${theme.promptBg}`}>
+            <div className="text-xs opacity-70 mb-1">WPM over time</div>
             <Sparkline data={wpmSeries.map(p=>p.w)} color="#4f46e5" width={400} height={80} />
           </div>
-          <div className="p-3 border rounded-md bg-gray-50">
-            <div className="text-xs text-gray-500 mb-1">Accuracy over time</div>
+          <div className={`p-3 border rounded-md ${theme.promptBg}`}>
+            <div className="text-xs opacity-70 mb-1">Accuracy over time</div>
             <Sparkline data={accSeries.map(p=>p.a)} color="#059669" width={400} height={80} maxValue={100} />
           </div>
         </div>
         <div className="mt-4 space-y-3">
-          <div className="text-xs text-gray-500">Mode: {mode} • Length: {length} • Prompt chars: {prompt.length}</div>
+          <div className="text-xs opacity-70">Mode: {mode} • Length: {length} • Prompt chars: {prompt.length}</div>
           <div className="flex flex-wrap gap-2">
-            <button className="btn" onClick={handleCopy}>📋 Copy Summary</button>
-            <button className="btn" onClick={handleShareTwitter}>🐦 Share on Twitter</button>
-            <button className="btn" onClick={handleShareChallenge}>⚡ Challenge Friends</button>
-            <button className="btn-primary" onClick={onClose}>🏁 Race Again</button>
+            <button className={`px-3 py-1.5 rounded-md border transition text-sm ${theme.navButton}`} onClick={handleCopy}>📋 Copy Summary</button>
+            <button className={`px-3 py-1.5 rounded-md border transition text-sm ${theme.navButton}`} onClick={handleShareTwitter}>🐦 Share on Twitter</button>
+            <button className={`px-3 py-1.5 rounded-md border transition text-sm ${theme.navButton}`} onClick={handleShareChallenge}>⚡ Challenge Friends</button>
+            <button className={`px-3 py-1.5 rounded-md text-white transition text-sm ${theme.accent}`} onClick={onClose}>🏁 Race Again</button>
           </div>
         </div>
       </div>
@@ -607,10 +877,10 @@ function ResultsModal({ onClose, prompt, wpmSeries, accSeries, totalTyped, corre
   );
 }
 
-function Stat({ label, value }) {
+function Stat({ label, value, theme }) {
   return (
-    <div className="p-3 border rounded-md bg-white text-center">
-      <div className="text-xs text-gray-500">{label}</div>
+    <div className={`p-3 border rounded-md text-center ${theme.card}`}>
+      <div className="text-xs opacity-70">{label}</div>
       <div className="text-xl font-semibold tabular-nums mt-1">{value}</div>
     </div>
   );
@@ -626,14 +896,14 @@ function coefficientOfVariation(arr) {
   return std / mean;
 }
 
-function PromptHighlighter({ prompt, typed }) {
+function PromptHighlighter({ prompt, typed, theme }) {
   const chunks = [];
   for (let i=0; i<prompt.length; i++) {
     const ch = prompt[i];
     const t = typed[i];
     if (t == null) chunks.push(<span key={i}>{ch}</span>);
-    else if (t === ch) chunks.push(<span key={i} className="bg-green-100">{ch}</span>);
-    else chunks.push(<span key={i} className="bg-red-100 line-through decoration-red-400">{ch}</span>);
+    else if (t === ch) chunks.push(<span key={i} className="bg-green-100 text-green-900">{ch}</span>);
+    else chunks.push(<span key={i} className="bg-red-100 text-red-900 line-through decoration-red-400">{ch}</span>);
   }
-  return <p className="p-3 bg-gray-50 border rounded-md whitespace-pre-wrap max-h-56 overflow-y-auto leading-relaxed">{chunks}</p>;
+  return <p className={`p-3 ${theme.promptBg} border rounded-md whitespace-pre-wrap max-h-56 overflow-y-auto leading-relaxed`}>{chunks}</p>;
 }
