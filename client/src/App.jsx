@@ -780,14 +780,14 @@ export default function App() {
                       </select>
                     </label>
                     {mode !== 'coding' ? (
-                      <label className="text-sm">Prompt length
+                    <label className="text-sm">Prompt length
                         <select className={`w-full px-3 py-2 border rounded-md outline-none focus:ring-2 mt-1 ${currentTheme.input}`} value={length} onChange={e=>setLength(e.target.value)}>
-                          <option value="short">Short</option>
-                          <option value="medium">Medium</option>
-                          <option value="long">Long</option>
-                          <option value="marathon">Marathon</option>
-                        </select>
-                      </label>
+                        <option value="short">Short</option>
+                        <option value="medium">Medium</option>
+                        <option value="long">Long</option>
+                        <option value="marathon">Marathon</option>
+                      </select>
+                    </label>
                     ) : (
                       <label className="text-sm">Programming Language
                         <select className={`w-full px-3 py-2 border rounded-md outline-none focus:ring-2 mt-1 ${currentTheme.input}`} value={codeLanguage} onChange={e=>setCodeLanguage(e.target.value)}>
@@ -871,9 +871,9 @@ export default function App() {
                   <input 
                     className={`flex-1 px-3 py-2 border rounded-md outline-none focus:ring-2 ${currentTheme.input}`}
                     placeholder="Say something…"
-                    value={chatText}
-                    onChange={e=>{ setChatText(e.target.value); socket.emit('typing_ping', { kind: 'chat' }); }}
-                    onKeyDown={(e)=>{ if (e.key==='Escape'){ setChatText(''); e.currentTarget.blur(); }} }
+                         value={chatText}
+                         onChange={e=>{ setChatText(e.target.value); socket.emit('typing_ping', { kind: 'chat' }); }}
+                         onKeyDown={(e)=>{ if (e.key==='Escape'){ setChatText(''); e.currentTarget.blur(); }} }
                   />
                   <button className={`px-3 py-1.5 rounded-md border transition text-sm ${currentTheme.navButton}`} type="submit">Send</button>
                 </form>
