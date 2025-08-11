@@ -31,6 +31,274 @@ function generateDailyChallenge() {
 
 let dailyChallenge = generateDailyChallenge();
 
+// Coding challenges system
+const CODING_SNIPPETS = {
+  javascript: [
+    `function fibonacci(n) {
+  if (n <= 1) return n;
+  return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+const result = fibonacci(10);
+console.log('Fibonacci of 10:', result);`,
+    `const users = [
+  { name: 'Alice', age: 25, role: 'developer' },
+  { name: 'Bob', age: 30, role: 'designer' },
+  { name: 'Charlie', age: 35, role: 'manager' }
+];
+
+const developers = users
+  .filter(user => user.role === 'developer')
+  .map(user => ({ ...user, senior: user.age > 25 }));`,
+    `async function fetchUserData(userId) {
+  try {
+    const response = await fetch(\`/api/users/\$\{userId\}\`);
+    if (!response.ok) {
+      throw new Error('User not found');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to fetch user:', error);
+    return null;
+  }
+}`
+  ],
+  python: [
+    `def quick_sort(arr):
+    if len(arr) <= 1:
+        return arr
+    
+    pivot = arr[len(arr) // 2]
+    left = [x for x in arr if x < pivot]
+    middle = [x for x in arr if x == pivot]
+    right = [x for x in arr if x > pivot]
+    
+    return quick_sort(left) + middle + quick_sort(right)
+
+numbers = [3, 6, 8, 10, 1, 2, 1]
+sorted_numbers = quick_sort(numbers)
+print(f"Sorted: {sorted_numbers}")`,
+    `class BankAccount:
+    def __init__(self, account_number, initial_balance=0):
+        self.account_number = account_number
+        self.balance = initial_balance
+        self.transactions = []
+    
+    def deposit(self, amount):
+        if amount > 0:
+            self.balance += amount
+            self.transactions.append(f"Deposit: +{amount}")
+            return True
+        return False
+    
+    def withdraw(self, amount):
+        if 0 < amount <= self.balance:
+            self.balance -= amount
+            self.transactions.append(f"Withdrawal: -{amount}")
+            return True
+        return False`,
+    `import requests
+from datetime import datetime, timedelta
+
+def get_weather_forecast(city, days=5):
+    api_key = "your_api_key_here"
+    base_url = "http://api.openweathermap.org/data/2.5/forecast"
+    
+    params = {
+        'q': city,
+        'appid': api_key,
+        'units': 'metric',
+        'cnt': days * 8  # 8 forecasts per day (3-hour intervals)
+    }
+    
+    response = requests.get(base_url, params=params)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return None`
+  ],
+  react: [
+    `import React, { useState, useEffect } from 'react';
+
+function TodoApp() {
+  const [todos, setTodos] = useState([]);
+  const [inputValue, setInputValue] = useState('');
+
+  const addTodo = () => {
+    if (inputValue.trim()) {
+      setTodos([...todos, { 
+        id: Date.now(), 
+        text: inputValue, 
+        completed: false 
+      }]);
+      setInputValue('');
+    }
+  };
+
+  const toggleTodo = (id) => {
+    setTodos(todos.map(todo => 
+      todo.id === id 
+        ? { ...todo, completed: !todo.completed }
+        : todo
+    ));
+  };
+
+  return (
+    <div className="todo-app">
+      <h1>My Todo List</h1>
+      <div className="input-section">
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && addTodo()}
+          placeholder="Add a new todo..."
+        />
+        <button onClick={addTodo}>Add</button>
+      </div>
+    </div>
+  );
+}`,
+    `import { useState, useCallback, useMemo } from 'react';
+
+const useSearch = (items, searchFields) => {
+  const [query, setQuery] = useState('');
+
+  const filteredItems = useMemo(() => {
+    if (!query.trim()) return items;
+    
+    return items.filter(item =>
+      searchFields.some(field => 
+        item[field]?.toLowerCase().includes(query.toLowerCase())
+      )
+    );
+  }, [items, query, searchFields]);
+
+  const handleSearch = useCallback((newQuery) => {
+    setQuery(newQuery);
+  }, []);
+
+  return {
+    query,
+    filteredItems,
+    handleSearch,
+    resultCount: filteredItems.length
+  };
+};
+
+export default useSearch;`
+  ],
+  css: [
+    `.card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%);
+  transform: translateX(-100%);
+  transition: transform 0.6s ease;
+}
+
+.card:hover::before {
+  transform: translateX(100%);
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}`,
+    `@keyframes slideInFromLeft {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.navbar-brand {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #333;
+  text-decoration: none;
+  animation: slideInFromLeft 0.5s ease-out;
+}
+
+.navbar-nav {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 2rem;
+}`
+  ],
+  sql: [
+    `-- Find top 5 customers by total order value
+SELECT 
+    c.customer_id,
+    c.first_name,
+    c.last_name,
+    c.email,
+    COUNT(o.order_id) as total_orders,
+    SUM(oi.quantity * oi.unit_price) as total_spent
+FROM customers c
+    LEFT JOIN orders o ON c.customer_id = o.customer_id
+    LEFT JOIN order_items oi ON o.order_id = oi.order_id
+WHERE o.order_date >= DATE_SUB(CURRENT_DATE, INTERVAL 12 MONTH)
+GROUP BY c.customer_id, c.first_name, c.last_name, c.email
+HAVING total_spent > 1000
+ORDER BY total_spent DESC
+LIMIT 5;`,
+    `-- Create a view for monthly sales summary
+CREATE VIEW monthly_sales_summary AS
+SELECT 
+    YEAR(order_date) as year,
+    MONTH(order_date) as month,
+    MONTHNAME(order_date) as month_name,
+    COUNT(DISTINCT order_id) as total_orders,
+    COUNT(DISTINCT customer_id) as unique_customers,
+    SUM(total_amount) as gross_revenue,
+    AVG(total_amount) as avg_order_value,
+    MAX(total_amount) as largest_order
+FROM orders 
+WHERE order_status != 'cancelled'
+GROUP BY YEAR(order_date), MONTH(order_date)
+ORDER BY year DESC, month DESC;`
+  ]
+};
+
+function getRandomCodeSnippet(language) {
+  const snippets = CODING_SNIPPETS[language] || CODING_SNIPPETS.javascript;
+  return snippets[Math.floor(Math.random() * snippets.length)];
+}
+
 // Simple user stats tracking (in-memory for now)
 const userStats = new Map(); // userId -> { bestWpm, gamesPlayed, streak, lastPlayed }
 const userAchievements = new Map(); // userId -> Set of achievement ids
@@ -43,7 +311,14 @@ const ACHIEVEMENTS = {
   STREAK_3: { id: 'streak_3', name: 'On Fire', description: '3-day typing streak!', icon: '🔥' },
   STREAK_7: { id: 'streak_7', name: 'Dedication', description: '7-day typing streak!', icon: '💎' },
   NO_BACKSPACE: { id: 'no_backspace', name: 'Smooth Operator', description: 'Complete race with 0 backspaces!', icon: '✨' },
-  MARATHON: { id: 'marathon', name: 'Marathon Runner', description: 'Complete a marathon length race!', icon: '🏃' }
+  MARATHON: { id: 'marathon', name: 'Marathon Runner', description: 'Complete a marathon length race!', icon: '🏃' },
+  // Coding achievements
+  FIRST_CODE: { id: 'first_code', name: 'Hello World', description: 'Complete your first coding challenge!', icon: '💻' },
+  CODE_MASTER: { id: 'code_master', name: 'Code Master', description: 'Complete 10 coding challenges!', icon: '👨‍💻' },
+  SYNTAX_PERFECTIONIST: { id: 'syntax_perfect', name: 'Syntax Perfectionist', description: '100% accuracy in a coding challenge!', icon: '🔧' },
+  POLYGLOT: { id: 'polyglot', name: 'Polyglot', description: 'Complete challenges in 5 different languages!', icon: '🌍' },
+  JAVASCRIPT_NINJA: { id: 'js_ninja', name: 'JavaScript Ninja', description: 'Complete 5 JavaScript challenges!', icon: '🟨' },
+  PYTHON_MASTER: { id: 'py_master', name: 'Python Master', description: 'Complete 5 Python challenges!', icon: '🐍' }
 };
 
 function checkAchievements(userId, stats, raceData) {
@@ -88,6 +363,52 @@ function checkAchievements(userId, stats, raceData) {
     userAchs.add('marathon');
   }
 
+  // Coding achievements
+  if (raceData.mode === 'coding') {
+    // First coding challenge
+    if (!userAchs.has('first_code')) {
+      newAchievements.push(ACHIEVEMENTS.FIRST_CODE);
+      userAchs.add('first_code');
+    }
+    
+    // Syntax perfectionist (100% accuracy in coding)
+    if (!userAchs.has('syntax_perfect') && raceData.accuracy === 100) {
+      newAchievements.push(ACHIEVEMENTS.SYNTAX_PERFECTIONIST);
+      userAchs.add('syntax_perfect');
+    }
+    
+    // Track language-specific stats
+    if (!stats.languageStats) stats.languageStats = {};
+    if (!stats.languageStats[raceData.codeLanguage]) {
+      stats.languageStats[raceData.codeLanguage] = 0;
+    }
+    stats.languageStats[raceData.codeLanguage]++;
+    
+    // Language-specific achievements
+    if (!userAchs.has('js_ninja') && stats.languageStats.javascript >= 5) {
+      newAchievements.push(ACHIEVEMENTS.JAVASCRIPT_NINJA);
+      userAchs.add('js_ninja');
+    }
+    if (!userAchs.has('py_master') && stats.languageStats.python >= 5) {
+      newAchievements.push(ACHIEVEMENTS.PYTHON_MASTER);
+      userAchs.add('py_master');
+    }
+    
+    // Polyglot achievement
+    const languageCount = Object.keys(stats.languageStats).length;
+    if (!userAchs.has('polyglot') && languageCount >= 5) {
+      newAchievements.push(ACHIEVEMENTS.POLYGLOT);
+      userAchs.add('polyglot');
+    }
+    
+    // Code master achievement
+    const totalCodingChallenges = Object.values(stats.languageStats).reduce((sum, count) => sum + count, 0);
+    if (!userAchs.has('code_master') && totalCodingChallenges >= 10) {
+      newAchievements.push(ACHIEVEMENTS.CODE_MASTER);
+      userAchs.add('code_master');
+    }
+  }
+
   userAchievements.set(userId, userAchs);
   return newAchievements;
 }
@@ -128,7 +449,11 @@ const PROMPTS = [
   "Healthy breaks and hydration keep your performance consistent.",
 ];
 
-function buildPrompt({ length = 'medium', mode = 'regular' }) {
+function buildPrompt({ length = 'medium', mode = 'regular', codeLanguage = 'javascript' }) {
+  if (mode === 'coding') {
+    return getRandomCodeSnippet(codeLanguage);
+  }
+  
   // sentence count targets
   const ranges = { short: [1, 2], medium: [3, 5], long: [8, 12], marathon: [20, 40] };
   const [minS, maxS] = ranges[length] || ranges.medium;
@@ -224,11 +549,12 @@ io.on('connection', (socket) => {
     const race = races.get(room); if (!race) return;
     if (!race.startedAt && !race.countdownActive) {
       // apply config if provided by the starter
-      const { mode, length, durationMs } = config;
-      if (mode === 'infinite' || mode === 'regular' || mode === 'timed') race.mode = mode;
+      const { mode, length, durationMs, codeLanguage } = config;
+      if (mode === 'infinite' || mode === 'regular' || mode === 'timed' || mode === 'coding') race.mode = mode;
       if (length) race.length = length;
       if (typeof durationMs === 'number' && durationMs >= 15000) race.durationMs = durationMs;
-      race.prompt = buildPrompt({ length: race.length, mode: race.mode });
+      if (codeLanguage) race.codeLanguage = codeLanguage;
+      race.prompt = buildPrompt({ length: race.length, mode: race.mode, codeLanguage: race.codeLanguage });
       race.countdownActive = true;
       race.countdown = 3;
       io.to(room).emit('race_countdown', { secondsLeft: race.countdown, mode: race.mode, length: race.length, durationMs: race.durationMs });
@@ -265,7 +591,7 @@ io.on('connection', (socket) => {
     } else {
       p.accuracy = acc(p.charsCorrect, p.totalTyped);
     }
-    if (race.mode === 'regular') {
+    if (race.mode === 'regular' || race.mode === 'coding') {
       p.progress = Math.round((p.charsCorrect / L) * 100);
       if (p.progress >= 100 && !p.finished) {
         p.finished = true;
@@ -273,7 +599,7 @@ io.on('connection', (socket) => {
         
         // Update user stats and check for achievements
         const stats = updateUserStats(p.id, p.wpm, p.accuracy);
-        const achievements = checkAchievements(p.id, stats, { wpm: p.wpm, accuracy: p.accuracy, length: race.length });
+        const achievements = checkAchievements(p.id, stats, { wpm: p.wpm, accuracy: p.accuracy, length: race.length, mode: race.mode, codeLanguage: race.codeLanguage });
         result.isNewRecord = p.wpm === stats.bestWpm;
         result.streak = stats.streak;
         
@@ -314,7 +640,7 @@ io.on('connection', (socket) => {
     const room = socket.data.room; if (!room) return;
     const race = races.get(room); if (!race) return;
     if (race.countdownTimer) { clearInterval(race.countdownTimer); race.countdownTimer = null; }
-    race.prompt = buildPrompt({ length: race.length, mode: race.mode });
+    race.prompt = buildPrompt({ length: race.length, mode: race.mode, codeLanguage: race.codeLanguage });
     race.startedAt = null;
     race.finished = false;
     race.countdown = 0;

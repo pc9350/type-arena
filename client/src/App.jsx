@@ -207,8 +207,9 @@ export default function App() {
   const [typingUsers, setTypingUsers] = useState(new Map()); // id -> {name, kind, ts}
   const typingUsersRef = useRef(new Map());
   const TYPING_TTL_MS = 1000;
-  const [mode, setMode] = useState('regular'); // 'regular' | 'infinite'
-  const [length, setLength] = useState('medium'); // 'short' | 'medium' | 'long' | 'marathon'
+  const [mode, setMode] = useState('regular'); // 'regular' | 'infinite' | 'coding'
+  const [length, setLength] = useState('medium');
+  const [codeLanguage, setCodeLanguage] = useState('javascript');
   const [durationMs, setDurationMs] = useState(5 * 60 * 1000);
   const [timeLeft, setTimeLeft] = useState(null);
   const [wpmSeries, setWpmSeries] = useState([]); // [{t,w}]
@@ -349,7 +350,14 @@ export default function App() {
     e.preventDefault();
     socket.emit('join_race', { name, room });
   }
-  function handleStart() { socket.emit('start_race', { mode, length, durationMs }); }
+  function handleStart() { socket.emit('start_race', { mode, length, durationMs, codeLanguage }); }
+  function handleStop() { 
+    socket.emit('restart_race'); // This will reset the race
+    setStartedAt(null);
+    setFinished(false);
+    setTyped('');
+    setCountdown(0);
+  }
   function handleRestart() { socket.emit('restart_race'); }
   function handleSendChat(e) { e.preventDefault(); if (!chatText.trim()) return; socket.emit('chat_message', { text: chatText }); setChatText(''); }
   function handleEmote(emoji) { socket.emit('send_emote', { emoji }); }
@@ -509,10 +517,21 @@ export default function App() {
                 <span className={`px-2 py-1 rounded border ${currentTheme.navTag}`}>Time left: <b>{formatMs(timeLeft)}</b></span>
               ) : null}
               {!startedAt && !countdown ? (
-                <button className={`px-3 py-1.5 rounded-md border transition text-sm ${currentTheme.navButton}`} onClick={handleStart}>Start</button>
+                <button className={`px-6 py-2 rounded-md text-white font-semibold transition text-sm shadow-lg hover:shadow-xl ${currentTheme.accent}`} onClick={handleStart}>
+                  🏁 Start Race
+                </button>
               ) : null}
-              {(finished || startedAt) ? (
-                <button className={`px-3 py-1.5 rounded-md border transition text-sm ${currentTheme.navButton}`} onClick={handleRestart}>Restart</button>
+              {startedAt && !finished ? (
+                <div className="flex gap-2">
+                  <button className={`px-4 py-2 rounded-md border transition text-sm font-medium ${currentTheme.navButton} hover:bg-red-50`} onClick={handleStop}>
+                    ⏹️ Stop
+                  </button>
+                </div>
+              ) : null}
+              {finished ? (
+                <button className={`px-4 py-2 rounded-md border transition text-sm font-medium ${currentTheme.navButton}`} onClick={handleRestart}>
+                  🔄 Restart
+                </button>
               ) : null}
             </div>
           ) : null}
@@ -580,6 +599,20 @@ export default function App() {
         ) : (
           <div className={`grid grid-cols-1 ${isMobile ? '' : 'lg:grid-cols-3'} gap-6`}>
             <section className={`lg:col-span-2 ${currentTheme.card} border rounded-xl shadow-sm p-4`}>
+              {mode === 'coding' && (
+                <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">💻</span>
+                    <div>
+                      <h3 className="font-semibold text-blue-900">Coding Challenge Mode</h3>
+                      <p className="text-sm text-blue-700">
+                        Language: <strong>{codeLanguage.charAt(0).toUpperCase() + codeLanguage.slice(1)}</strong> • 
+                        Type real code with proper syntax!
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="relative">
                 {countdown ? (
                   <div className="absolute inset-0 z-10 grid place-items-center bg-white/80 text-6xl font-bold">{countdown}</div>
@@ -603,7 +636,7 @@ export default function App() {
               </div>
               <div className="mt-4">
                 <p className="text-sm text-gray-600 mb-2"><b>Prompt</b></p>
-                <PromptHighlighter prompt={prompt} typed={typed} theme={currentTheme} />
+                <PromptHighlighter prompt={prompt} typed={typed} theme={currentTheme} mode={mode} />
                 <textarea
                   className={`w-full px-3 py-2 border rounded-md outline-none focus:ring-2 mt-3 ${isMobile ? 'text-lg' : ''} ${currentTheme.textarea}`}
                   disabled={!startedAt || finished}
@@ -743,16 +776,34 @@ export default function App() {
                         <option value="regular">Regular</option>
                         <option value="infinite">Infinite</option>
                         <option value="timed">Timed</option>
+                        <option value="coding">🔥 Coding Challenge</option>
                       </select>
                     </label>
-                    <label className="text-sm">Prompt length
-                      <select className={`w-full px-3 py-2 border rounded-md outline-none focus:ring-2 mt-1 ${currentTheme.input}`} value={length} onChange={e=>setLength(e.target.value)}>
-                        <option value="short">Short</option>
-                        <option value="medium">Medium</option>
-                        <option value="long">Long</option>
-                        <option value="marathon">Marathon</option>
-                      </select>
-                    </label>
+                    {mode !== 'coding' ? (
+                      <label className="text-sm">Prompt length
+                        <select className={`w-full px-3 py-2 border rounded-md outline-none focus:ring-2 mt-1 ${currentTheme.input}`} value={length} onChange={e=>setLength(e.target.value)}>
+                          <option value="short">Short</option>
+                          <option value="medium">Medium</option>
+                          <option value="long">Long</option>
+                          <option value="marathon">Marathon</option>
+                        </select>
+                      </label>
+                    ) : (
+                      <label className="text-sm">Programming Language
+                        <select className={`w-full px-3 py-2 border rounded-md outline-none focus:ring-2 mt-1 ${currentTheme.input}`} value={codeLanguage} onChange={e=>setCodeLanguage(e.target.value)}>
+                          <option value="javascript">JavaScript</option>
+                          <option value="python">Python</option>
+                          <option value="java">Java</option>
+                          <option value="cpp">C++</option>
+                          <option value="typescript">TypeScript</option>
+                          <option value="react">React/JSX</option>
+                          <option value="css">CSS</option>
+                          <option value="html">HTML</option>
+                          <option value="sql">SQL</option>
+                          <option value="json">JSON</option>
+                        </select>
+                      </label>
+                    )}
                     {mode!=='regular' && (
                       <label className="text-sm">Duration
                         <select className={`w-full px-3 py-2 border rounded-md outline-none focus:ring-2 mt-1 ${currentTheme.input}`} value={durationMs} onChange={e=>setDurationMs(Number(e.target.value))}>
@@ -1528,7 +1579,7 @@ function TypingInsightsModal({ onClose, keyTimes, theme }) {
   );
 }
 
-function PromptHighlighter({ prompt, typed, theme }) {
+function PromptHighlighter({ prompt, typed, theme, mode }) {
   const chunks = [];
   for (let i=0; i<prompt.length; i++) {
     const ch = prompt[i];
@@ -1537,5 +1588,20 @@ function PromptHighlighter({ prompt, typed, theme }) {
     else if (t === ch) chunks.push(<span key={i} className="bg-green-100 text-green-900">{ch}</span>);
     else chunks.push(<span key={i} className="bg-red-100 text-red-900 line-through decoration-red-400">{ch}</span>);
   }
-  return <p className={`p-3 ${theme.promptBg} border rounded-md whitespace-pre-wrap max-h-56 overflow-y-auto leading-relaxed`}>{chunks}</p>;
+  
+  const isCodingMode = mode === 'coding';
+  const containerClass = isCodingMode 
+    ? `p-4 ${theme.promptBg} border rounded-md whitespace-pre font-mono text-sm max-h-64 overflow-y-auto leading-relaxed bg-gray-900 text-gray-100`
+    : `p-3 ${theme.promptBg} border rounded-md whitespace-pre-wrap max-h-56 overflow-y-auto leading-relaxed`;
+  
+  return (
+    <div className="relative">
+      {isCodingMode && (
+        <div className="absolute top-2 right-2 px-2 py-1 bg-blue-600 text-white text-xs rounded font-semibold">
+          CODE CHALLENGE 💻
+        </div>
+      )}
+      <p className={containerClass}>{chunks}</p>
+    </div>
+  );
 }
