@@ -475,41 +475,43 @@ export default function App() {
             <div className="flex items-center gap-2">
               <span className="text-xl">🏟️</span>
               <span className="font-bold text-lg">Type Arena</span>
-              <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-1.5 py-0.5 rounded-full">BETA</span>
+              {/* <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-1.5 py-0.5 rounded-full">BETA</span> */}
             </div>
             
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => setShowHelp(true)}
                 className={`p-2 rounded-full transition ${currentTheme.navButton}`}
-                title="Help"
+                title="Help & Tutorial"
               >
                 ❓
               </button>
-              <select 
-                value={theme} 
-                onChange={(e) => handleThemeChange(e.target.value)}
-                className={`px-2 py-1 rounded border text-xs ${currentTheme.navButton}`}
-              >
-                {Object.entries(THEMES).map(([key, t]) => (
-                  <option key={key} value={key}>{key.charAt(0).toUpperCase() + key.slice(1, 4)}</option>
-                ))}
-              </select>
-              <button 
-                onClick={() => setSoundEnabled(soundEffects.toggle())}
-                className={`p-2 rounded transition ${soundEnabled ? 'bg-green-100 text-green-700' : currentTheme.navButton}`}
-                title={soundEnabled ? 'Sound ON' : 'Sound OFF'}
-              >
-                {soundEnabled ? '🔊' : '🔇'}
-              </button>
               {joined && (
-                <button 
-                  onClick={handleLeaveRoom}
-                  className={`px-2 py-1 rounded border text-xs ${currentTheme.navButton} hover:bg-red-50`}
-                  title="Leave Room"
-                >
-                  🚪
-                </button>
+                <>
+                  <select 
+                    value={theme} 
+                    onChange={(e) => handleThemeChange(e.target.value)}
+                    className={`px-2 py-1 rounded border text-xs ${currentTheme.navButton}`}
+                  >
+                    {Object.entries(THEMES).map(([key, t]) => (
+                      <option key={key} value={key}>{t.name}</option>
+                    ))}
+                  </select>
+                  <button 
+                    onClick={() => setSoundEnabled(soundEffects.toggle())}
+                    className={`p-2 rounded transition ${soundEnabled ? 'bg-green-100 text-green-700' : currentTheme.navButton}`}
+                    title={soundEnabled ? 'Sound ON' : 'Sound OFF'}
+                  >
+                    {soundEnabled ? '🔊' : '🔇'}
+                  </button>
+                  <button 
+                    onClick={handleLeaveRoom}
+                    className={`px-2 py-1 rounded border text-xs ${currentTheme.navButton} hover:bg-red-50 flex items-center gap-1`}
+                    title="Leave Room"
+                  >
+                    🚪 <span className="hidden sm:inline">Leave</span>
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -568,27 +570,8 @@ export default function App() {
       <main className="max-w-6xl mx-auto px-2 md:px-4 py-3 md:py-6">
         {!joined ? (
           <div className={`mx-auto max-w-xl ${currentTheme.card} shadow-lg border rounded-xl p-4 md:p-6`}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-semibold">Join a Room</h2>
-              <div className="flex items-center gap-2">
-                <select 
-                  value={theme} 
-                  onChange={(e) => handleThemeChange(e.target.value)}
-                  className={`px-2 py-1 rounded text-xs ${currentTheme.input}`}
-                  title="Choose theme"
-                >
-                  {Object.entries(THEMES).map(([key, t]) => (
-                    <option key={key} value={key}>{t.name}</option>
-                  ))}
-                </select>
-                <button 
-                  onClick={() => setSoundEnabled(soundEffects.toggle())}
-                  className={`px-2 py-1 rounded transition text-sm border ${soundEnabled ? 'bg-green-100 text-green-700 border-green-200' : currentTheme.navButton}`}
-                  title={soundEnabled ? 'Sound: ON' : 'Sound: OFF'}
-                >
-                  {soundEnabled ? '🔊' : '🔇'}
-                </button>
-              </div>
+            <div className="mb-4">
+              <h2 className="text-2xl font-semibold text-center">Join a Room</h2>
             </div>
             <form onSubmit={handleJoin} className="grid grid-cols-1 gap-3">
               <input 
@@ -621,6 +604,33 @@ export default function App() {
               <p className="text-center text-sm opacity-80 mt-3">
                 Use power-ups during races to gain advantages! Hold Alt + Q/W/E/R to activate.
               </p>
+            </div>
+
+            {/* Settings Section */}
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Theme:</span>
+                  <select 
+                    value={theme} 
+                    onChange={(e) => handleThemeChange(e.target.value)}
+                    className={`px-2 py-1 rounded border text-sm ${currentTheme.input}`}
+                  >
+                    {Object.entries(THEMES).map(([key, t]) => (
+                      <option key={key} value={key}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Sound:</span>
+                  <button 
+                    onClick={() => setSoundEnabled(soundEffects.toggle())}
+                    className={`px-3 py-1 rounded transition text-sm border ${soundEnabled ? 'bg-green-100 text-green-700 border-green-200' : currentTheme.navButton}`}
+                  >
+                    {soundEnabled ? '🔊 ON' : '🔇 OFF'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         ) : (
