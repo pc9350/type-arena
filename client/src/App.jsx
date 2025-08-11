@@ -76,6 +76,49 @@ class SoundEffects {
 
 const soundEffects = new SoundEffects();
 
+const POWER_UPS = {
+  SPEED: { 
+    id: 'speed', 
+    name: 'Speed Boost', 
+    icon: '⚡', 
+    description: '1.5x WPM for 10s',
+    duration: 10000,
+    cooldown: 30000,
+    color: 'from-yellow-400 to-orange-500',
+    hotkey: 'Alt+Q'
+  },
+  SHIELD: { 
+    id: 'shield', 
+    name: 'Shield', 
+    icon: '🛡️', 
+    description: 'Next 3 mistakes ignored',
+    uses: 3,
+    cooldown: 45000,
+    color: 'from-blue-400 to-cyan-500',
+    hotkey: 'Alt+W'
+  },
+  FREEZE: { 
+    id: 'freeze', 
+    name: 'Freeze', 
+    icon: '🧊', 
+    description: 'Slow opponents for 8s',
+    duration: 8000,
+    cooldown: 60000,
+    color: 'from-cyan-400 to-blue-500',
+    hotkey: 'Alt+E'
+  },
+  PRECISION: { 
+    id: 'precision', 
+    name: 'Precision', 
+    icon: '🎯', 
+    description: '100% accuracy for 20 chars',
+    uses: 20,
+    cooldown: 40000,
+    color: 'from-green-400 to-emerald-500',
+    hotkey: 'Alt+R'
+  }
+};
+
 const THEMES = {
   default: {
     name: 'Ocean Breeze',
@@ -177,6 +220,22 @@ export default function App() {
   const wrongPositionsRef = useRef(new Set());
   const [topRuns, setTopRuns] = useState([]);
 
+  // Power-ups system
+  const [powerUps, setPowerUps] = useState([]);
+  const [activePowerUps, setActivePowerUps] = useState(new Map()); // id -> {type, endsAt, data}
+  const [powerUpCooldowns, setPowerUpCooldowns] = useState(new Map()); // type -> endsAt
+  const [shieldCount, setShieldCount] = useState(0);
+  const [frozenUntil, setFrozenUntil] = useState(0);
+  const [showTutorial, setShowTutorial] = useState(!localStorage.getItem('tutorialCompleted'));
+  const [showHelp, setShowHelp] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
+  
+  // Typing insights
+  const [slowestKeys, setSlowestKeys] = useState(new Map()); // key -> avgTime
+  const [keyTimes, setKeyTimes] = useState([]); // [{key, time, timestamp}]
+  const [lastKeyTime, setLastKeyTime] = useState(Date.now());
+  const [showInsights, setShowInsights] = useState(false);
+
   const socket = useMemo(() => io(SERVER_URL, { transports: ['websocket'] }), []);
 
   useEffect(() => {
@@ -203,6 +262,7 @@ export default function App() {
       setFinished(true); 
       soundEffects.play('finish');
       confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } }); 
+      localStorage.setItem('firstRaceCompleted', 'true');
     });
     socket.on('race_restarted', ({ prompt, mode, length, durationMs }) => { setPrompt(prompt); setFinished(false); setTyped(''); setCountdown(0); setStartedAt(null); if (mode) setMode(mode); if (length) setLength(length); if (durationMs) setDurationMs(durationMs); });
     socket.on('chat_message', (msg) => setMessages(m => [...m.slice(-98), msg]));
@@ -216,6 +276,17 @@ export default function App() {
       soundEffects.play('achievement');
       confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
       setTimeout(() => setShowAchievement(null), 4000);
+    });
+    socket.on('power_up_spawned', (powerUp) => {
+      setPowerUps(prev => [...prev, powerUp]);
+      soundEffects.play('type'); // Power-up spawn sound
+    });
+    socket.on('power_up_used', ({ playerId, type, duration }) => {
+      if (playerId === socketId) {
+        activatePowerUp(type, duration);
+      } else {
+        handleOpponentPowerUp(type, duration);
+      }
     });
     socket.on('typing', ({ id, name, isTyping, kind, ts }) => {
       const map = new Map(typingUsersRef.current);
@@ -297,8 +368,60 @@ export default function App() {
     setStartedAt(null);
     setFinished(false);
     setCountdown(0);
+    setPowerUps([]);
+    setActivePowerUps(new Map());
+    setPowerUpCooldowns(new Map());
+    setShieldCount(0);
+    setFrozenUntil(0);
     // Reconnect socket for future use
     socket.connect();
+  }
+
+  function activatePowerUp(type, duration) {
+    const powerUp = POWER_UPS[type.toUpperCase()];
+    if (!powerUp) return;
+
+    const now = Date.now();
+    const endsAt = now + (duration || powerUp.duration || 0);
+
+    setActivePowerUps(prev => new Map(prev.set(type, { type, endsAt, data: powerUp })));
+    setPowerUpCooldowns(prev => new Map(prev.set(type, now + powerUp.cooldown)));
+    
+    // Special handling for different power-ups
+    if (type === 'shield') {
+      setShieldCount(powerUp.uses);
+    }
+    
+    soundEffects.play('achievement');
+    
+    // Auto-expire power-up
+    setTimeout(() => {
+      setActivePowerUps(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(type);
+        return newMap;
+      });
+    }, duration || powerUp.duration || 0);
+  }
+
+  function handleOpponentPowerUp(type, duration) {
+    if (type === 'freeze') {
+      setFrozenUntil(Date.now() + (duration || POWER_UPS.FREEZE.duration));
+      soundEffects.play('error'); // Frozen sound
+    }
+  }
+
+  function usePowerUp(type) {
+    const powerUp = POWER_UPS[type.toUpperCase()];
+    if (!powerUp || !startedAt || finished) return;
+
+    const now = Date.now();
+    const cooldownEnd = powerUpCooldowns.get(type) || 0;
+    
+    if (now < cooldownEnd) return; // Still on cooldown
+    if (activePowerUps.has(type)) return; // Already active
+
+    socket.emit('use_power_up', { type, duration: powerUp.duration });
   }
 
   const correctChars = prompt ? [...typed].filter((c, i) => c === prompt[i]).length : 0;
@@ -339,10 +462,19 @@ export default function App() {
     <div className={`min-h-screen ${currentTheme.background} ${currentTheme.text}`}>
       <header className={`sticky top-0 z-10 ${currentTheme.header} border-b`}>
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xl font-semibold">
-            <span>🏁</span>
-            <span>Typing Racer</span>
-            <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-0.5 rounded-full">BETA</span>
+          <div className="flex items-center gap-3 text-xl font-semibold">
+            <div className="flex items-center gap-2">
+              <span>🏟️</span>
+              <span>Type Arena</span>
+              <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-0.5 rounded-full">BETA</span>
+            </div>
+            <button 
+              onClick={() => setShowHelp(true)}
+              className={`px-2 py-1 rounded-full text-sm transition ${currentTheme.navButton} hover:scale-110`}
+              title="How to play & Power-ups Guide"
+            >
+              ❓
+            </button>
           </div>
           {joined ? (
             <div className="flex items-center gap-3 text-sm">
@@ -427,6 +559,23 @@ export default function App() {
               />
               <button type="submit" className={`px-3 py-1.5 rounded-md text-white transition text-sm ${currentTheme.accent}`}>Join</button>
             </form>
+            
+            {/* Power-ups Preview */}
+            <div className="mt-6 p-4 border rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20">
+              <h3 className="text-lg font-semibold mb-3 text-center">🎮 Battle Royale Features</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {Object.values(POWER_UPS).map((powerUp, index) => (
+                  <div key={powerUp.id} className="text-center p-2 rounded bg-white/50 dark:bg-black/20">
+                    <div className="text-2xl mb-1">{powerUp.icon}</div>
+                    <div className="text-xs font-medium">{powerUp.name}</div>
+                    <div className="text-xs opacity-70">{powerUp.hotkey}</div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-center text-sm opacity-80 mt-3">
+                Use power-ups during races to gain advantages! Hold Alt + Q/W/E/R to activate.
+              </p>
+            </div>
           </div>
         ) : (
           <div className={`grid grid-cols-1 ${isMobile ? '' : 'lg:grid-cols-3'} gap-6`}>
@@ -472,15 +621,67 @@ export default function App() {
                   }}
                   onKeyDown={(e)=>{
                     if (e.key === 'Backspace') setBackspaces(b=>b+1);
+                    
+                    // Power-up hotkeys (Alt+Q/W/E/R)
+                    if (e.altKey && startedAt && !finished) {
+                      let powerUpType = null;
+                      if (e.key === 'q' || e.key === 'Q') powerUpType = 'speed';
+                      else if (e.key === 'w' || e.key === 'W') powerUpType = 'shield';
+                      else if (e.key === 'e' || e.key === 'E') powerUpType = 'freeze';
+                      else if (e.key === 'r' || e.key === 'R') powerUpType = 'precision';
+                      
+                      if (powerUpType) {
+                        e.preventDefault(); // Prevent default Alt behavior
+                        usePowerUp(powerUpType);
+                        return;
+                      }
+                    }
+                    
                     // Count mistakes when pressing a printable key that does not match expected char
                     if (e.key.length === 1 && prompt) {
+                      const now = Date.now();
+                      const keyTime = now - lastKeyTime;
+                      setLastKeyTime(now);
+                      
+                      // Track key timing for insights
+                      if (startedAt && keyTime < 2000) { // Ignore long pauses
+                        setKeyTimes(prev => [...prev.slice(-100), { key: e.key, time: keyTime, timestamp: now }]);
+                      }
+                      
                       const idx = typed.length;
                       const expected = prompt[idx] ?? '';
-                      if (e.key !== expected) {
-                        setErrorKeys(n => n + 1);
-                        soundEffects.play('error');
+                      const isCorrect = e.key === expected;
+                      const hasPrecision = activePowerUps.has('precision');
+                      const hasShield = shieldCount > 0;
+                      
+                      if (!isCorrect && !hasPrecision) {
+                        if (hasShield) {
+                          setShieldCount(c => Math.max(0, c - 1));
+                          soundEffects.play('type'); // Shield absorbed the mistake
+                        } else {
+                          setErrorKeys(n => n + 1);
+                          soundEffects.play('error');
+                        }
                       } else {
                         soundEffects.play('type');
+                      }
+                      
+                      // Handle precision power-up usage
+                      if (hasPrecision) {
+                        const precision = activePowerUps.get('precision');
+                        const remaining = precision.data.uses - 1;
+                        if (remaining <= 0) {
+                          setActivePowerUps(prev => {
+                            const newMap = new Map(prev);
+                            newMap.delete('precision');
+                            return newMap;
+                          });
+                        } else {
+                          setActivePowerUps(prev => new Map(prev.set('precision', {
+                            ...precision,
+                            data: { ...precision.data, uses: remaining }
+                          })));
+                        }
                       }
                     }
                     if (!finished && startedAt) socket.emit('typing_ping', { kind: 'race' });
@@ -494,6 +695,25 @@ export default function App() {
                   accSeries={accSeries}
                   theme={currentTheme}
                 />
+                {startedAt && !finished && (
+                  <>
+                    <PowerUpBar 
+                      activePowerUps={activePowerUps}
+                      cooldowns={powerUpCooldowns}
+                      shieldCount={shieldCount}
+                      frozenUntil={frozenUntil}
+                      onUsePowerUp={usePowerUp}
+                      theme={currentTheme}
+                    />
+                    {!localStorage.getItem('firstRaceCompleted') && (
+                      <div className="mt-2 p-2 bg-gradient-to-r from-purple-100 to-pink-100 border border-purple-200 rounded-lg text-center">
+                        <span className="text-purple-700 text-sm">
+                          💡 <strong>Pro tip:</strong> Hold Alt + Q/W/E/R to use power-ups during the race!
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </section>
             <aside className="space-y-6">
@@ -633,7 +853,7 @@ export default function App() {
         <div className="max-w-6xl mx-auto px-4 text-center">
           <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-gray-600">
             <span>Made with ❤️ for typing enthusiasts</span>
-            <a href="https://github.com/pc9350/typing-racer" target="_blank" rel="noopener" className="hover:text-indigo-600">
+            <a href="https://github.com/pc9350/type-arena.git" target="_blank" rel="noopener" className="hover:text-indigo-600">
               📚 Open Source
             </a>
             <button 
@@ -662,6 +882,8 @@ export default function App() {
           length={length}
           durationMs={durationMs}
           theme={currentTheme}
+          keyTimes={keyTimes}
+          setShowInsights={setShowInsights}
         />
       ) : null}
 
@@ -669,6 +891,33 @@ export default function App() {
         <AchievementPopup 
           achievement={showAchievement} 
           onClose={() => setShowAchievement(null)} 
+        />
+      )}
+
+      {showTutorial && (
+        <TutorialModal 
+          step={tutorialStep}
+          onNext={() => setTutorialStep(s => s + 1)}
+          onClose={() => {
+            setShowTutorial(false);
+            localStorage.setItem('tutorialCompleted', 'true');
+          }}
+          theme={currentTheme}
+        />
+      )}
+
+      {showHelp && (
+        <HelpModal 
+          onClose={() => setShowHelp(false)}
+          theme={currentTheme}
+        />
+      )}
+
+      {showInsights && (
+        <TypingInsightsModal 
+          onClose={() => setShowInsights(false)}
+          keyTimes={keyTimes}
+          theme={currentTheme}
         />
       )}
     </div>
@@ -810,7 +1059,7 @@ function Sparkline({ data, color = '#4f46e5', width = 140, height = 36, maxValue
   );
 }
 
-function ResultsModal({ onClose, prompt, wpmSeries, accSeries, totalTyped, correctChars, startedAt, backspaces, firstKeyAt, mode, length, durationMs, theme }) {
+function ResultsModal({ onClose, prompt, wpmSeries, accSeries, totalTyped, correctChars, startedAt, backspaces, firstKeyAt, mode, length, durationMs, theme, keyTimes, setShowInsights }) {
   const duration = (wpmSeries[wpmSeries.length-1]?.t || 0);
   const meanWpm = average(wpmSeries.map(p=>p.w));
   const peakWpm = Math.max(...wpmSeries.map(p=>p.w), 0);
@@ -825,7 +1074,7 @@ function ResultsModal({ onClose, prompt, wpmSeries, accSeries, totalTyped, corre
   }
 
   function handleShareTwitter() {
-    const text = `🏁 Just typed ${Math.round(meanWpm)} WPM with ${finalAcc}% accuracy on Typing Racer! Can you beat my score? 💨`;
+    const text = `🏁 Just typed ${Math.round(meanWpm)} WPM with ${finalAcc}% accuracy on Type Arena! Can you beat my score? 💨`;
     const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(window.location.origin)}`;
     window.open(url, '_blank');
   }
@@ -869,6 +1118,7 @@ function ResultsModal({ onClose, prompt, wpmSeries, accSeries, totalTyped, corre
             <button className={`px-3 py-1.5 rounded-md border transition text-sm ${theme.navButton}`} onClick={handleCopy}>📋 Copy Summary</button>
             <button className={`px-3 py-1.5 rounded-md border transition text-sm ${theme.navButton}`} onClick={handleShareTwitter}>🐦 Share on Twitter</button>
             <button className={`px-3 py-1.5 rounded-md border transition text-sm ${theme.navButton}`} onClick={handleShareChallenge}>⚡ Challenge Friends</button>
+            <button className={`px-3 py-1.5 rounded-md border transition text-sm ${theme.navButton}`} onClick={() => setShowInsights(true)}>📊 Typing Insights</button>
             <button className={`px-3 py-1.5 rounded-md text-white transition text-sm ${theme.accent}`} onClick={onClose}>🏁 Race Again</button>
           </div>
         </div>
@@ -894,6 +1144,388 @@ function coefficientOfVariation(arr) {
   const variance = arr.reduce((s,v)=>s+Math.pow(v-mean,2),0) / (arr.length-1);
   const std = Math.sqrt(variance);
   return std / mean;
+}
+
+function PowerUpBar({ activePowerUps, cooldowns, shieldCount, frozenUntil, onUsePowerUp, theme }) {
+  const now = Date.now();
+  const isFrozen = now < frozenUntil;
+  
+  return (
+    <div className={`mt-4 p-3 ${theme.card} border rounded-lg`}>
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-sm font-semibold">Power-ups</h4>
+        <div className="text-xs opacity-70">Alt + Q/W/E/R</div>
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        {Object.entries(POWER_UPS).map(([key, powerUp], index) => {
+          const isActive = activePowerUps.has(powerUp.id);
+          const cooldownEnd = cooldowns.get(powerUp.id) || 0;
+          const onCooldown = now < cooldownEnd;
+          const cooldownPercent = onCooldown ? ((cooldownEnd - now) / powerUp.cooldown) * 100 : 0;
+          
+          return (
+            <button
+              key={powerUp.id}
+              onClick={() => onUsePowerUp(powerUp.id)}
+              disabled={onCooldown || isActive || isFrozen}
+              className={`relative p-2 rounded-lg border-2 transition-all duration-200 ${
+                isActive 
+                  ? `bg-gradient-to-r ${powerUp.color} text-white border-white shadow-lg animate-pulse` 
+                  : onCooldown || isFrozen
+                  ? `${theme.card} border-gray-400 opacity-50 cursor-not-allowed`
+                  : `${theme.card} border-gray-300 hover:border-gray-400 hover:shadow-md`
+              }`}
+              title={`${powerUp.name}: ${powerUp.description} (${powerUp.hotkey})`}
+            >
+              <div className="text-lg mb-1">{powerUp.icon}</div>
+              <div className="text-xs font-medium">{powerUp.hotkey.split('+')[1]}</div>
+              {isActive && powerUp.id === 'shield' && (
+                <div className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {shieldCount}
+                </div>
+              )}
+              {onCooldown && (
+                <div 
+                  className="absolute bottom-0 left-0 bg-red-400 h-1 rounded-b transition-all duration-1000"
+                  style={{ width: `${cooldownPercent}%` }}
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {isFrozen && (
+        <div className="mt-2 p-2 bg-blue-100 border border-blue-300 rounded text-center">
+          <span className="text-blue-700 text-sm">🧊 You are frozen! ({Math.ceil((frozenUntil - now) / 1000)}s)</span>
+        </div>
+      )}
+      {activePowerUps.size > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {Array.from(activePowerUps.entries()).map(([type, powerUp]) => (
+            <div key={type} className={`px-2 py-1 rounded text-xs bg-gradient-to-r ${powerUp.data.color} text-white`}>
+              {powerUp.data.icon} {powerUp.data.name}
+              {powerUp.endsAt && (
+                <span className="ml-1">({Math.ceil((powerUp.endsAt - now) / 1000)}s)</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TutorialModal({ step, onNext, onClose, theme }) {
+  const tutorialSteps = [
+    {
+      title: "Welcome to Type Arena! 🏟️",
+      content: "The world's first battle royale typing game! Race against others and use power-ups to dominate the arena.",
+      image: "🎮"
+    },
+    {
+      title: "Power-ups System ⚡",
+      content: "During races, you can use 4 powerful abilities by holding Alt + Q/W/E/R. Each has unique effects and cooldowns!",
+      image: "🚀"
+    },
+    {
+      title: "Speed Boost ⚡ (Alt+Q)",
+      content: "Increases your WPM calculation by 1.5x for 10 seconds. Perfect for final sprints!",
+      image: "⚡"
+    },
+    {
+      title: "Shield 🛡️ (Alt+W)", 
+      content: "Protects you from the next 3 typing mistakes. Essential for maintaining accuracy under pressure!",
+      image: "🛡️"
+    },
+    {
+      title: "Freeze 🧊 (Alt+E)",
+      content: "Slows down ALL opponents for 8 seconds. Use strategically to gain the upper hand!",
+      image: "🧊"
+    },
+    {
+      title: "Precision 🎯 (Alt+R)",
+      content: "Guarantees 100% accuracy for the next 20 characters. Perfect for difficult passages!",
+      image: "🎯"
+    },
+    {
+      title: "Ready to Battle! 🏆",
+      content: "You're all set! Join a room, wait for the race to start, then use your power-ups strategically to win!",
+      image: "🏁"
+    }
+  ];
+
+  const currentStep = tutorialSteps[step] || tutorialSteps[tutorialSteps.length - 1];
+  const isLastStep = step >= tutorialSteps.length - 1;
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+      <div className={`w-full max-w-md ${theme.card} rounded-xl shadow-2xl border p-6`}>
+        <div className="text-center">
+          <div className="text-4xl mb-4">{currentStep.image}</div>
+          <h3 className="text-xl font-bold mb-3">{currentStep.title}</h3>
+          <p className="text-sm opacity-80 mb-6 leading-relaxed">{currentStep.content}</p>
+          
+          <div className="flex items-center justify-center gap-2 mb-4">
+            {tutorialSteps.map((_, index) => (
+              <div 
+                key={index}
+                className={`w-2 h-2 rounded-full ${index === step ? 'bg-purple-500' : 'bg-gray-300'}`}
+              />
+            ))}
+          </div>
+
+          <div className="flex gap-3">
+            <button 
+              onClick={onClose}
+              className={`flex-1 px-4 py-2 rounded-md border transition text-sm ${theme.navButton}`}
+            >
+              Skip Tutorial
+            </button>
+            <button 
+              onClick={isLastStep ? onClose : onNext}
+              className={`flex-1 px-4 py-2 rounded-md text-white transition text-sm ${theme.accent}`}
+            >
+              {isLastStep ? "Let's Go!" : "Next"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HelpModal({ onClose, theme }) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+      <div className={`w-full max-w-2xl ${theme.card} rounded-xl shadow-2xl border p-6 max-h-[90vh] overflow-y-auto`}>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold">🏟️ Type Arena Guide</h2>
+          <button 
+            onClick={onClose}
+            className={`px-3 py-1 rounded-md border transition ${theme.navButton}`}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          <section>
+            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              🎮 How to Play
+            </h3>
+            <ul className="text-sm space-y-2 opacity-90">
+              <li>• Join a room and wait for other players</li>
+              <li>• When the race starts, type the given text as fast and accurately as possible</li>
+              <li>• Use power-ups strategically by holding Alt + Q/W/E/R</li>
+              <li>• First to complete the text wins (in Regular mode)</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              ⚡ Power-ups Guide
+            </h3>
+            <div className="grid gap-4">
+              {Object.values(POWER_UPS).map((powerUp, index) => (
+                <div key={powerUp.id} className={`p-3 rounded-lg border ${theme.promptBg}`}>
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-2xl">{powerUp.icon}</span>
+                    <div>
+                      <div className="font-semibold">{powerUp.name}</div>
+                      <div className="text-xs opacity-70">{powerUp.hotkey}</div>
+                    </div>
+                  </div>
+                  <p className="text-sm opacity-80">{powerUp.description}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              🏆 Game Modes
+            </h3>
+            <ul className="text-sm space-y-2 opacity-90">
+              <li>• <strong>Regular:</strong> First to complete the text wins</li>
+              <li>• <strong>Timed:</strong> Highest WPM when time runs out wins</li>
+              <li>• <strong>Infinite:</strong> Endless text, compete for highest WPM</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              🎨 Features
+            </h3>
+            <ul className="text-sm space-y-2 opacity-90">
+              <li>• <strong>Themes:</strong> 4 beautiful themes to choose from</li>
+              <li>• <strong>Sound Effects:</strong> Satisfying audio feedback</li>
+              <li>• <strong>Achievements:</strong> Unlock badges for accomplishments</li>
+              <li>• <strong>Daily Challenges:</strong> Special objectives each day</li>
+              <li>• <strong>Statistics:</strong> Track your WPM and accuracy over time</li>
+            </ul>
+          </section>
+        </div>
+
+        <div className="mt-6 pt-4 border-t text-center">
+          <button 
+            onClick={onClose}
+            className={`px-6 py-2 rounded-md text-white transition ${theme.accent}`}
+          >
+            Got it! Let's Type! 🚀
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TypingInsightsModal({ onClose, keyTimes, theme }) {
+  // Analyze key timing data
+  const keyStats = new Map();
+  keyTimes.forEach(({ key, time }) => {
+    if (!keyStats.has(key)) keyStats.set(key, []);
+    keyStats.get(key).push(time);
+  });
+
+  // Calculate averages and identify slow keys
+  const keyAverages = Array.from(keyStats.entries()).map(([key, times]) => ({
+    key,
+    avgTime: times.reduce((a, b) => a + b, 0) / times.length,
+    count: times.length
+  })).sort((a, b) => b.avgTime - a.avgTime);
+
+  const slowestKeys = keyAverages.slice(0, 5);
+  const fastestKeys = keyAverages.slice(-5).reverse();
+  
+  // Typing rhythm analysis
+  const avgKeyTime = keyTimes.length > 0 ? keyTimes.reduce((sum, kt) => sum + kt.time, 0) / keyTimes.length : 0;
+  const rhythm = keyTimes.length > 10 ? 
+    keyTimes.slice(-10).reduce((sum, kt) => sum + kt.time, 0) / 10 : avgKeyTime;
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+      <div className={`w-full max-w-3xl ${theme.card} rounded-xl shadow-2xl border p-6 max-h-[90vh] overflow-y-auto`}>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold">📊 Typing Insights</h2>
+          <button 
+            onClick={onClose}
+            className={`px-3 py-1 rounded-md border transition ${theme.navButton}`}
+          >
+            ✕
+          </button>
+        </div>
+
+        {keyTimes.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="text-4xl mb-4">⏱️</div>
+            <p className="text-lg mb-2">No typing data available</p>
+            <p className="text-sm opacity-70">Complete a race to see your typing insights!</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Overall Stats */}
+            <section>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                🎯 Performance Overview
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className={`p-3 rounded-lg border text-center ${theme.promptBg}`}>
+                  <div className="text-2xl font-bold">{Math.round(avgKeyTime)}ms</div>
+                  <div className="text-sm opacity-70">Avg Key Time</div>
+                </div>
+                <div className={`p-3 rounded-lg border text-center ${theme.promptBg}`}>
+                  <div className="text-2xl font-bold">{Math.round(rhythm)}ms</div>
+                  <div className="text-sm opacity-70">Recent Rhythm</div>
+                </div>
+                <div className={`p-3 rounded-lg border text-center ${theme.promptBg}`}>
+                  <div className="text-2xl font-bold">{keyTimes.length}</div>
+                  <div className="text-sm opacity-70">Keys Pressed</div>
+                </div>
+              </div>
+            </section>
+
+            {/* Slowest Keys */}
+            {slowestKeys.length > 0 && (
+              <section>
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  🐌 Keys to Improve
+                </h3>
+                <div className="space-y-2">
+                  {slowestKeys.map(({ key, avgTime, count }) => (
+                    <div key={key} className={`flex items-center justify-between p-3 rounded-lg border ${theme.promptBg}`}>
+                      <div className="flex items-center gap-3">
+                        <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm font-mono">
+                          {key === ' ' ? 'Space' : key.toUpperCase()}
+                        </kbd>
+                        <span className="text-sm">Average: {Math.round(avgTime)}ms</span>
+                      </div>
+                      <div className="text-xs opacity-70">{count} times</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200">
+                  <p className="text-sm">💡 <strong>Tip:</strong> Practice these keys to improve your overall typing speed!</p>
+                </div>
+              </section>
+            )}
+
+            {/* Fastest Keys */}
+            {fastestKeys.length > 0 && (
+              <section>
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  ⚡ Your Strongest Keys
+                </h3>
+                <div className="space-y-2">
+                  {fastestKeys.map(({ key, avgTime, count }) => (
+                    <div key={key} className={`flex items-center justify-between p-3 rounded-lg border ${theme.promptBg}`}>
+                      <div className="flex items-center gap-3">
+                        <kbd className="px-2 py-1 bg-green-200 dark:bg-green-700 rounded text-sm font-mono">
+                          {key === ' ' ? 'Space' : key.toUpperCase()}
+                        </kbd>
+                        <span className="text-sm">Average: {Math.round(avgTime)}ms</span>
+                      </div>
+                      <div className="text-xs opacity-70">{count} times</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Recommendations */}
+            <section>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                🎓 Personalized Recommendations
+              </h3>
+              <div className="space-y-3">
+                {avgKeyTime > 200 && (
+                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200">
+                    <p className="text-sm"><strong>Focus on Speed:</strong> Your average key time is {Math.round(avgKeyTime)}ms. Try typing drills to build muscle memory.</p>
+                  </div>
+                )}
+                {Math.abs(rhythm - avgKeyTime) > 50 && (
+                  <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200">
+                    <p className="text-sm"><strong>Improve Consistency:</strong> Your rhythm varies. Practice maintaining steady typing pace.</p>
+                  </div>
+                )}
+                <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200">
+                  <p className="text-sm"><strong>Keep Racing:</strong> Regular practice in Type Arena will help you improve naturally!</p>
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
+
+        <div className="mt-6 pt-4 border-t text-center">
+          <button 
+            onClick={onClose}
+            className={`px-6 py-2 rounded-md text-white transition ${theme.accent}`}
+          >
+            Got it! Let's improve! 💪
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function PromptHighlighter({ prompt, typed, theme }) {

@@ -371,6 +371,21 @@ io.on('connection', (socket) => {
     io.to(room).emit('emote', { id: socket.id, emoji: safeEmoji, ts: Date.now() });
   });
 
+  socket.on('use_power_up', ({ type, duration }) => {
+    const room = socket.data.room; if (!room) return;
+    const race = races.get(room); if (!race) return;
+    const p = race.players.get(socket.id); if (!p) return;
+    if (!race.startedAt || race.finished) return;
+
+    // Broadcast power-up usage to all players in room
+    io.to(room).emit('power_up_used', { 
+      playerId: socket.id, 
+      playerName: p.name,
+      type, 
+      duration: duration || 10000 
+    });
+  });
+
   socket.on('disconnect', () => {
     const room = socket.data.room; if (!room) return;
     const race = races.get(room); if (!race) return;
