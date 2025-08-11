@@ -469,78 +469,84 @@ export default function App() {
   return (
     <div className={`min-h-screen ${currentTheme.background} ${currentTheme.text}`}>
       <header className={`sticky top-0 z-10 ${currentTheme.header} border-b`}>
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3 text-xl font-semibold">
+        <div className="max-w-6xl mx-auto px-2 md:px-4 py-2 md:py-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4">
+            <div className="flex items-center gap-1 md:gap-3 text-lg md:text-xl font-semibold">
             <div className="flex items-center gap-2">
               <span>🏟️</span>
-              <span>Type Arena</span>
-              <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-0.5 rounded-full">BETA</span>
+                              <span className="hidden sm:inline">Type Arena</span>
+                <span className="sm:hidden">Arena</span>
+                              <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-1.5 py-0.5 rounded-full">BETA</span>
             </div>
-            <button 
-              onClick={() => setShowHelp(true)}
-              className={`px-2 py-1 rounded-full text-sm transition ${currentTheme.navButton} hover:scale-110`}
-              title="How to play & Power-ups Guide"
-            >
-              ❓
-            </button>
-          </div>
-          {joined ? (
-            <div className="flex items-center gap-3 text-sm">
+              <button 
+                onClick={() => setShowHelp(true)}
+                className={`px-1.5 py-1 rounded-full text-sm transition ${currentTheme.navButton} hover:scale-110`}
+                title="How to play & Power-ups Guide"
+              >
+                ❓
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-1 md:gap-2 text-xs md:text-sm">
               <select 
                 value={theme} 
                 onChange={(e) => handleThemeChange(e.target.value)}
-                className={`px-2 py-1 rounded text-xs border ${currentTheme.navButton}`}
+                className={`px-1 md:px-2 py-1 rounded text-xs border ${currentTheme.navButton}`}
                 title="Choose theme"
               >
                 {Object.entries(THEMES).map(([key, t]) => (
-                  <option key={key} value={key}>{t.name}</option>
+                  <option key={key} value={key}>{isMobile ? key.charAt(0).toUpperCase() + key.slice(1, 4) : t.name}</option>
                 ))}
               </select>
               <button 
                 onClick={() => setSoundEnabled(soundEffects.toggle())}
-                className={`px-2 py-1 rounded transition border ${soundEnabled ? 'bg-green-100 text-green-700 border-green-200' : currentTheme.navButton}`}
+                className={`px-1.5 md:px-2 py-1 rounded transition border ${soundEnabled ? 'bg-green-100 text-green-700 border-green-200' : currentTheme.navButton}`}
                 title={soundEnabled ? 'Sound: ON' : 'Sound: OFF'}
               >
                 {soundEnabled ? '🔊' : '🔇'}
               </button>
               <button 
                 onClick={handleLeaveRoom}
-                className={`px-2 py-1 rounded transition border ${currentTheme.navButton} hover:bg-red-100 hover:text-red-700 hover:border-red-200`}
+                className={`px-2 md:px-3 py-1 rounded transition border ${currentTheme.navButton} hover:bg-red-100 hover:text-red-700 hover:border-red-200`}
                 title="Leave Room"
               >
-                🚪 Leave
+                🚪 <span className="hidden sm:inline">Leave</span>
               </button>
-              <span className={`px-2 py-1 rounded border ${currentTheme.navTag}`}>Room: <b>{room}</b></span>
-              <span className={`hidden md:inline px-2 py-1 rounded border ${currentTheme.navTag}`}>Mode: <b>{mode}</b></span>
-              <span className={`hidden md:inline px-2 py-1 rounded border ${currentTheme.navTag}`}>Length: <b>{length}</b></span>
-                    {mode!=='regular' && startedAt ? (
-                <span className={`px-2 py-1 rounded border ${currentTheme.navTag}`}>Time left: <b>{formatMs(timeLeft)}</b></span>
-              ) : null}
-              {!startedAt && !countdown ? (
-                <button className={`px-6 py-2 rounded-md text-white font-semibold transition text-sm shadow-lg hover:shadow-xl ${currentTheme.accent}`} onClick={handleStart}>
-                  🏁 Start Race
-                </button>
-              ) : null}
-              {startedAt && !finished ? (
-                <div className="flex gap-2">
-                  <button className={`px-4 py-2 rounded-md border transition text-sm font-medium ${currentTheme.navButton} hover:bg-red-50`} onClick={handleStop}>
-                    ⏹️ Stop
-                  </button>
-                </div>
-              ) : null}
-              {finished ? (
-                <button className={`px-4 py-2 rounded-md border transition text-sm font-medium ${currentTheme.navButton}`} onClick={handleRestart}>
-                  🔄 Restart
-                </button>
-              ) : null}
             </div>
-          ) : null}
+            {joined && (
+              <div className="flex flex-wrap items-center gap-1 md:gap-2 text-xs md:text-sm mt-2 md:mt-0">
+                <span className={`px-1.5 py-0.5 rounded border ${currentTheme.navTag}`}>Room: <b>{room}</b></span>
+                <span className={`px-1.5 py-0.5 rounded border ${currentTheme.navTag}`}>
+                  {mode === 'coding' ? `${codeLanguage.toUpperCase()}` : `${mode.toUpperCase()}`}
+                </span>
+                {mode!=='regular' && startedAt ? (
+                  <span className={`px-1.5 py-0.5 rounded border ${currentTheme.navTag}`}>⏰ <b>{formatMs(timeLeft)}</b></span>
+                ) : null}
+                <div className="flex justify-center w-full mt-1 md:mt-0 md:w-auto">
+                  {!startedAt && !countdown ? (
+                    <button className={`px-4 py-1.5 md:px-6 md:py-2 rounded-md text-white font-semibold transition text-sm shadow-lg hover:shadow-xl ${currentTheme.accent}`} onClick={handleStart}>
+                      🏁 Start Race
+                    </button>
+                  ) : null}
+                  {startedAt && !finished ? (
+                    <button className={`px-3 py-1.5 md:px-4 md:py-2 rounded-md border transition text-sm font-medium ${currentTheme.navButton} hover:bg-red-50`} onClick={handleStop}>
+                      ⏹️ Stop
+                    </button>
+                  ) : null}
+                  {finished ? (
+                    <button className={`px-3 py-1.5 md:px-4 md:py-2 rounded-md border transition text-sm font-medium ${currentTheme.navButton}`} onClick={handleRestart}>
+                      🔄 Restart
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-6">
+      <main className="max-w-6xl mx-auto px-2 md:px-4 py-3 md:py-6">
         {!joined ? (
-          <div className={`mx-auto max-w-xl ${currentTheme.card} shadow-lg border rounded-xl p-6`}>
+          <div className={`mx-auto max-w-xl ${currentTheme.card} shadow-lg border rounded-xl p-4 md:p-6`}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-semibold">Join a Room</h2>
               <div className="flex items-center gap-2">
